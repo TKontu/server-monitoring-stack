@@ -1,0 +1,52 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'system-monitor'
+
+# Alerting configuration (optional - uncomment to enable)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Rule files (optional - uncomment to enable)
+# rule_files:
+#   - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          instance: 'prometheus'
+
+  # Node Exporter - Host metrics (CPU, RAM, Disk, Network, Temps)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          instance: 'host'
+
+  # cAdvisor - Container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          instance: 'containers'
+
+  # Glances - System overview metrics
+  - job_name: 'glances'
+    static_configs:
+      - targets: ['localhost:61209']
+        labels:
+          instance: 'glances'
+    # Glances exports Prometheus metrics on port 61209
+    # Enable with: glances -w --export prometheus
+
+  # Docker daemon metrics (if enabled in Docker config)
+  # - job_name: 'docker'
+  #   static_configs:
+  #     - targets: ['localhost:9323']

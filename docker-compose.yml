@@ -1,0 +1,148 @@
+version: "3.8"
+
+# ============================================================================
+# System Monitoring Stack
+# ============================================================================
+# Includes:
+#   - Glances: Real-time system monitoring (CPU, RAM, Disk, Network, GPU, Temps)
+#   - Prometheus: Metrics collection and storage
+#   - Grafana: Beautiful dashboards and visualization
+#   - Node Exporter: Detailed host metrics
+#   - cAdvisor: Container metrics
+#
+# Access:
+#   - Glances:    http://localhost:61208
+#   - Grafana:    http://localhost:3000 (admin/admin)
+#   - Prometheus: http://localhost:9090
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Glances - Real-time System Monitor
+  # --------------------------------------------------------------------------
+  # Provides instant view of: CPU, RAM, Disk, Network, Processes, GPU, Temps
+  glances:
+    image: nicolargo/glances:latest-full
+    container_name: glances
+    restart: unless-stopped
+    pid: host
+    privileged: true
+    network_mode: host
+    environment:
+      - GLANCES_OPT=-w
+      - TZ=${TZ:-UTC}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/os-release:/etc/os-release:ro
+      # For GPU monitoring (NVIDIA)
+      - /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:ro
+      - /usr/bin/nvidia-smi:/usr/bin/nvidia-smi:ro
+    # For NVIDIA GPU support, uncomment below:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    ports:
+      - "61208:61208"
+    labels:
+      - "monitoring.description=Real-time system monitoring"
+
+  # --------------------------------------------------------------------------
+  # Prometheus - Metrics Collection
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    labels:
+      - "monitoring.description=Metrics collection and storage"
+
+  # --------------------------------------------------------------------------
+  # Grafana - Visualization & Dashboards
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    labels:
+      - "monitoring.description=Visualization and dashboards"
+
+  # --------------------------------------------------------------------------
+  # Node Exporter - Host Metrics
+  # --------------------------------------------------------------------------
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.hwmon'
+      - '--collector.thermal_zone'
+    volumes:
+      - /:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    ports:
+      - "9100:9100"
+    labels:
+      - "monitoring.description=Host system metrics"
+
+  # --------------------------------------------------------------------------
+  # cAdvisor - Container Metrics
+  # --------------------------------------------------------------------------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8080:8080"
+    labels:
+      - "monitoring.description=Container metrics"
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  default:
+    name: monitoring
