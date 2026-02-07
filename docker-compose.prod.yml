@@ -1,24 +1,350 @@
 # ============================================================================
-# System Monitoring Stack
+# System Monitoring Stack (Self-contained for Portainer Git deployment)
 # ============================================================================
-# Includes:
-#   - Glances: Real-time system monitoring (CPU, RAM, Disk, Network, GPU, Temps)
-#   - Prometheus: Metrics collection and storage
-#   - Grafana: Beautiful dashboards and visualization
-#   - Node Exporter: Detailed host metrics
-#   - cAdvisor: Container metrics
+# All configs are embedded inline - no external file mounts needed.
 #
 # Access:
-#   - Glances:    http://localhost:61208
-#   - Grafana:    http://localhost:3000 (admin/admin)
-#   - Prometheus: http://localhost:9090
+#   - Glances:    http://<host>:61208
+#   - Grafana:    http://<host>:3000 (admin/admin)
+#   - Prometheus: http://<host>:9090
 # ============================================================================
+
+configs:
+  prometheus_config:
+    content: |
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+        external_labels:
+          monitor: 'system-monitor'
+      scrape_configs:
+        - job_name: 'prometheus'
+          static_configs:
+            - targets: ['localhost:9090']
+              labels:
+                instance: 'prometheus'
+        - job_name: 'node-exporter'
+          static_configs:
+            - targets: ['node-exporter:9100']
+              labels:
+                instance: 'host'
+        - job_name: 'cadvisor'
+          static_configs:
+            - targets: ['cadvisor:8080']
+              labels:
+                instance: 'containers'
+        - job_name: 'glances'
+          static_configs:
+            - targets: ['localhost:61209']
+              labels:
+                instance: 'glances'
+
+  grafana_datasources:
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+          editable: false
+          jsonData:
+            timeInterval: "15s"
+            httpMethod: POST
+
+  grafana_dashboard_provider:
+    content: |
+      apiVersion: 1
+      providers:
+        - name: 'Default'
+          orgId: 1
+          folder: 'System Monitoring'
+          folderUid: 'system-monitoring'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          options:
+            path: /var/lib/grafana/dashboards
+
+  grafana_dashboard_json:
+    content: |
+      {
+        "annotations": { "list": [] },
+        "editable": true,
+        "fiscalYearStartMonth": 0,
+        "graphTooltip": 1,
+        "id": null,
+        "links": [],
+        "liveNow": false,
+        "panels": [
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "red", "value": 85 }] },
+                "unit": "percent"
+              }
+            },
+            "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+            "id": 1,
+            "options": { "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true },
+            "title": "CPU Usage",
+            "type": "gauge",
+            "targets": [{ "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] },
+                "unit": "percent"
+              }
+            },
+            "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+            "id": 2,
+            "options": { "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true },
+            "title": "Memory Usage",
+            "type": "gauge",
+            "targets": [{ "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 85 }] },
+                "unit": "percent"
+              }
+            },
+            "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+            "id": 3,
+            "options": { "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true },
+            "title": "Disk Usage (/)",
+            "type": "gauge",
+            "targets": [{ "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!=\"rootfs\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!=\"rootfs\"})) * 100", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "orange", "value": 75 }, { "color": "red", "value": 85 }] },
+                "unit": "celsius"
+              }
+            },
+            "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+            "id": 4,
+            "options": { "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true },
+            "title": "CPU Temperature",
+            "type": "gauge",
+            "targets": [{ "expr": "avg(node_hwmon_temp_celsius{chip=~\".*coretemp.*|.*k10temp.*|.*cpu.*\"})", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+                "unit": "percent"
+              }
+            },
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+            "id": 5,
+            "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+            "title": "CPU Usage Over Time",
+            "type": "timeseries",
+            "targets": [{ "expr": "100 - (avg by (cpu) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "legendFormat": "CPU {{cpu}}", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+                "unit": "bytes"
+              }
+            },
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+            "id": 6,
+            "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+            "title": "Memory Usage Over Time",
+            "type": "timeseries",
+            "targets": [
+              { "expr": "node_memory_MemTotal_bytes", "legendFormat": "Total", "refId": "A" },
+              { "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "legendFormat": "Used", "refId": "B" },
+              { "expr": "node_memory_Cached_bytes", "legendFormat": "Cached", "refId": "C" },
+              { "expr": "node_memory_Buffers_bytes", "legendFormat": "Buffers", "refId": "D" }
+            ]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+                "unit": "celsius"
+              }
+            },
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+            "id": 7,
+            "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+            "title": "Temperatures",
+            "type": "timeseries",
+            "targets": [{ "expr": "node_hwmon_temp_celsius", "legendFormat": "{{chip}} - {{sensor}}", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+                "unit": "Bps"
+              }
+            },
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+            "id": 8,
+            "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+            "title": "Disk I/O",
+            "type": "timeseries",
+            "targets": [
+              { "expr": "rate(node_disk_read_bytes_total[5m])", "legendFormat": "{{device}} Read", "refId": "A" },
+              { "expr": "rate(node_disk_written_bytes_total[5m])", "legendFormat": "{{device}} Write", "refId": "B" }
+            ]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+                "unit": "Bps"
+              }
+            },
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+            "id": 9,
+            "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+            "title": "Network Traffic",
+            "type": "timeseries",
+            "targets": [
+              { "expr": "rate(node_network_receive_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[5m])", "legendFormat": "{{device}} RX", "refId": "A" },
+              { "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[5m])", "legendFormat": "{{device}} TX", "refId": "B" }
+            ]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 85 }] },
+                "unit": "percent"
+              },
+              "overrides": []
+            },
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+            "id": 10,
+            "options": { "displayMode": "lcd", "minVizHeight": 10, "minVizWidth": 0, "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true },
+            "title": "Disk Space by Mount",
+            "type": "bargauge",
+            "targets": [{ "expr": "(1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"})) * 100", "legendFormat": "{{mountpoint}}", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }, "unit": "short" } },
+            "gridPos": { "h": 4, "w": 4, "x": 0, "y": 30 },
+            "id": 11,
+            "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+            "title": "Running Processes",
+            "type": "stat",
+            "targets": [{ "expr": "node_procs_running", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }, "unit": "short" } },
+            "gridPos": { "h": 4, "w": 4, "x": 4, "y": 30 },
+            "id": 12,
+            "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+            "title": "Total Processes",
+            "type": "stat",
+            "targets": [{ "expr": "node_procs_blocked + node_procs_running", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "s" } },
+            "gridPos": { "h": 4, "w": 4, "x": 8, "y": 30 },
+            "id": 13,
+            "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+            "title": "System Uptime",
+            "type": "stat",
+            "targets": [{ "expr": "time() - node_boot_time_seconds", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }, "unit": "short" } },
+            "gridPos": { "h": 4, "w": 4, "x": 12, "y": 30 },
+            "id": 14,
+            "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+            "title": "CPU Cores",
+            "type": "stat",
+            "targets": [{ "expr": "count(node_cpu_seconds_total{mode=\"idle\"})", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }, "unit": "bytes" } },
+            "gridPos": { "h": 4, "w": 4, "x": 16, "y": 30 },
+            "id": 15,
+            "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+            "title": "Total RAM",
+            "type": "stat",
+            "targets": [{ "expr": "node_memory_MemTotal_bytes", "refId": "A" }]
+          },
+          {
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "decimals": 2, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 2 }, { "color": "red", "value": 5 }] }, "unit": "short" } },
+            "gridPos": { "h": 4, "w": 4, "x": 20, "y": 30 },
+            "id": 16,
+            "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+            "title": "Load Average (1m)",
+            "type": "stat",
+            "targets": [{ "expr": "node_load1", "refId": "A" }]
+          }
+        ],
+        "refresh": "5s",
+        "schemaVersion": 38,
+        "style": "dark",
+        "tags": ["system", "monitoring", "node"],
+        "templating": { "list": [] },
+        "time": { "from": "now-1h", "to": "now" },
+        "timepicker": {},
+        "timezone": "",
+        "title": "System Monitoring Dashboard",
+        "uid": "system-monitoring",
+        "version": 1,
+        "weekStart": ""
+      }
 
 services:
   # --------------------------------------------------------------------------
   # Glances - Real-time System Monitor
   # --------------------------------------------------------------------------
-  # Provides instant view of: CPU, RAM, Disk, Network, Processes, GPU, Temps
   glances:
     image: nicolargo/glances:latest-full
     container_name: glances
@@ -51,8 +377,10 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -72,10 +400,15 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_ROOT_URL=http://localhost:3000
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
+    configs:
+      - source: grafana_datasources
+        target: /etc/grafana/provisioning/datasources/datasources.yml
+      - source: grafana_dashboard_provider
+        target: /etc/grafana/provisioning/dashboards/dashboards.yml
+      - source: grafana_dashboard_json
+        target: /var/lib/grafana/dashboards/system-monitoring.json
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3000:3000"
     depends_on:
