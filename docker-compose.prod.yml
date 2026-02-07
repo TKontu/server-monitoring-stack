@@ -346,7 +346,6 @@ services:
     restart: unless-stopped
     pid: host
     network_mode: host
-    runtime: nvidia
     environment:
       - GLANCES_OPT=-w
       - TZ=${TZ:-UTC}
@@ -357,6 +356,13 @@ services:
       - /etc/os-release:/etc/os-release:ro
       - /proc:/proc:ro
       - /sys:/sys:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility, compute]
     labels:
       - "monitoring.description=Real-time system monitoring"
 
