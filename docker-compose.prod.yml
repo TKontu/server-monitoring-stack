@@ -356,13 +356,6 @@ services:
       - /etc/os-release:/etc/os-release:ro
       - /proc:/proc:ro
       - /sys:/sys:ro
-      - /usr/bin/nvidia-smi:/usr/bin/nvidia-smi:ro
-      - /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro
-      - /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.575.57.08:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.575.57.08:ro
-    devices:
-      - /dev/nvidia0:/dev/nvidia0
-      - /dev/nvidiactl:/dev/nvidiactl
-      - /dev/nvidia-uvm:/dev/nvidia-uvm
     labels:
       - "monitoring.description=Real-time system monitoring"
 
