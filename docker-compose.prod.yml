@@ -1,5 +1,3 @@
-version: "3.8"
-
 # ============================================================================
 # System Monitoring Stack
 # ============================================================================
@@ -28,24 +26,16 @@ services:
     pid: host
     privileged: true
     network_mode: host
+    runtime: nvidia
     environment:
       - GLANCES_OPT=-w
       - TZ=${TZ:-UTC}
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/os-release:/etc/os-release:ro
-      # For GPU monitoring (NVIDIA)
       - /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:ro
       - /usr/bin/nvidia-smi:/usr/bin/nvidia-smi:ro
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    ports:
-      - "61208:61208"
     labels:
       - "monitoring.description=Real-time system monitoring"
 
