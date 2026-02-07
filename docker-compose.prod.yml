@@ -356,6 +356,10 @@ services:
       - /etc/os-release:/etc/os-release:ro
       - /proc:/proc:ro
       - /sys:/sys:ro
+    devices:
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
     labels:
       - "monitoring.description=Real-time system monitoring"
 
