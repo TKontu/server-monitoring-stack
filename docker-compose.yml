@@ -37,14 +37,13 @@ services:
       # For GPU monitoring (NVIDIA)
       - /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:ro
       - /usr/bin/nvidia-smi:/usr/bin/nvidia-smi:ro
-    # For NVIDIA GPU support, uncomment below:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     ports:
       - "61208:61208"
     labels:
